@@ -1,0 +1,12 @@
+# netlify.toml — Hello Neighbor
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# Optional: basic security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"

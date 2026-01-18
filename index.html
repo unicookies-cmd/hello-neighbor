@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hello Neighbor — UniCookies</title>
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css?v=1" />
+  <meta name="robots" content="noindex,nofollow" />
+</head>
+<body>
+  <main class="wrap">
+    <section class="card" aria-live="polite">
+      <div class="brand">
+        <img src="./assets/logo.svg" alt="UniCookies" />
+      </div>
+
+      <!-- Screen 1 -->
+      <section id="s1" class="screen active fade">
+        <div class="kicker">HELLO, NEIGHBOR</div>
+        <h1 class="title">Welcome home.</h1>
+        <p class="sub" id="ethos"></p>
+        <div class="actions">
+          <button id="startBtn" class="primary">Claim your welcome box</button>
+        </div>
+        <div class="divider">
+          Tip: This is a community partner gift program.
+        </div>
+      </section>
+
+      <!-- Screen 2 -->
+      <section id="s2" class="screen fade">
+        <div class="kicker">STEP 1</div>
+        <h2 class="title">Your community</h2>
+        <p class="sub">Start typing your community name. Choose from the list, or enter it manually.</p>
+
+        <div class="field suggest">
+          <div class="label">Community</div>
+          <input id="communityInput" placeholder="Start typing your community name…" autocomplete="off" />
+          <div id="suggestBox" class="suggestbox hidden" role="listbox" aria-label="Community suggestions"></div>
+        </div>
+
+        <div id="manualTypeBlock" class="field hidden">
+          <div class="label">Community type</div>
+          <div class="row two">
+            <button id="manualHome" class="ghost" type="button">Home community</button>
+            <button id="manualApt" class="ghost" type="button">Apartment / condo / loft</button>
+          </div>
+          <div class="small">We’ll tailor the address fields to match.</div>
+        </div>
+
+        <div class="actions">
+          <button id="back1" class="ghost" type="button">Back</button>
+          <button id="toAddress" class="primary" type="button">Continue</button>
+        </div>
+
+        <div class="divider">
+          Tip: If your community isn’t listed yet, type it in and select a type.
+        </div>
+      </section>
+
+      <!-- Screen 3 -->
+      <section id="s3" class="screen fade">
+        <div class="kicker">STEP 2</div>
+        <h2 class="title">Your address</h2>
+        <p class="sub" id="addrHelp">Tell us where to deliver your welcome box.</p>
+
+        <!-- Home fields -->
+        <div id="homeFields" class="hidden">
+          <div class="row two">
+            <div class="field">
+              <div class="label">Street number</div>
+              <input id="streetNumber" inputmode="numeric" placeholder="123" />
+            </div>
+            <div class="field">
+              <div class="label">Street type</div>
+              <select id="streetType">
+                <option value="ST">St</option><option value="RD">Rd</option><option value="CIR">Cir</option>
+                <option value="LN">Ln</option><option value="DR">Dr</option><option value="BLVD">Blvd</option>
+                <option value="CT">Ct</option><option value="WAY">Way</option><option value="PL">Pl</option>
+                <option value="TER">Ter</option><option value="AVE">Ave</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="label">Street name</div>
+            <input id="streetName" placeholder="Main" />
+          </div>
+
+          <div class="row two">
+            <div class="field">
+              <div class="label">City</div>
+              <input id="city" placeholder="City" />
+            </div>
+            <div class="field">
+              <div class="label">ZIP</div>
+              <input id="zip" inputmode="numeric" placeholder="00000" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Apartment fields -->
+        <div id="aptFields" class="hidden">
+          <div class="row two">
+            <div class="field">
+              <div class="label">Unit / Apt #</div>
+              <input id="unit" placeholder="12B" />
+            </div>
+            <div class="field" id="buildingWrap">
+              <div class="label">Building (if applicable)</div>
+              <input id="building" placeholder="A / Tower 2" />
+            </div>
+          </div>
+
+          <div class="row two">
+            <div class="field">
+              <div class="label">City</div>
+              <input id="aptCity" placeholder="City" />
+            </div>
+            <div class="field">
+              <div class="label">ZIP</div>
+              <input id="aptZip" inputmode="numeric" placeholder="00000" />
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="back2" class="ghost" type="button">Back</button>
+          <button id="toDetails" class="primary" type="button">Continue</button>
+        </div>
+
+        <div class="divider">
+          Tip: Double-check your unit or street number so we can deliver smoothly.
+        </div>
+      </section>
+
+      <!-- Screen 4 -->
+      <section id="s4" class="screen fade">
+        <div class="kicker">STEP 3</div>
+        <h2 class="title">Your details</h2>
+        <p class="sub">So we can confirm delivery with you.</p>
+
+        <div class="row two">
+          <div class="field">
+            <div class="label">First name</div>
+            <input id="firstName" placeholder="First name" />
+          </div>
+          <div class="field">
+            <div class="label">Last name (optional)</div>
+            <input id="lastName" placeholder="Last name" />
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="label">Phone (required)</div>
+          <input id="phone" inputmode="tel" placeholder="(555) 123-4567" />
+        </div>
+
+        <div class="field">
+          <div class="label">Delivery notes (optional)</div>
+          <textarea id="notes" placeholder="Gate code, concierge instructions, etc."></textarea>
+        </div>
+
+        <div class="actions">
+          <button id="back3" class="ghost" type="button">Back</button>
+          <button id="submitBtn" class="primary" type="button">Send me cookies.</button>
+        </div>
+
+        <div class="divider">
+          Tip: Submitting confirms you’re a new resident and your community is participating.
+        </div>
+      </section>
+
+      <!-- Screen 5 -->
+      <section id="s5" class="screen fade">
+        <div class="kicker">CONFIRMED</div>
+        <h2 class="title">You’re all set.</h2>
+        <p class="sub">We received your claim. A UniCookies welcome moment is on the way.</p>
+
+        <div class="divider" id="summary"></div>
+
+        <div class="actions">
+          <button id="newClaim" class="ghost" type="button">Start another claim</button>
+        </div>
+
+        <div class="divider">
+          Tip: Share a photo and tag <strong>@eatunicookies</strong> when your box arrives.
+        </div>
+      </section>
+
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="./config.js"></script>
+  <script src="./communities.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
