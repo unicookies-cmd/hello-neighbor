@@ -1,52 +1,212 @@
-/* communities.js
-   Hello Neighbor — seed list (Names only)
-   Region scope: Cypress + Bridgeland + Towne Lake + Fairfield + Rose Hill
-*/
+// communities.js
+// Hello Neighbor — Community directory (Home communities + Apartment/Multi-family)
+// Note: Keep apartment list ending with “Greenhouse Village Apartments” as requested.
 
-window.UNI_COMMUNITIES = [
-  // --------------------------
-  // HOME COMMUNITIES / NEIGHBORHOODS (HAR)
-  // --------------------------
-  { name: "Bridgeland", type: "home" },
-  { name: "Bridgeland Parkland Village", type: "home" },
-  { name: "Bridgeland Prairieland Village (Cypress)", type: "home" },
-  { name: "Bridgeland Central", type: "home" },
-  { name: "Bridgeland Hidden Creek", type: "home" },
-  { name: "Bridgeland Lakeland Heights", type: "home" },
-  { name: "Bridgeland First Bend", type: "home" },
+window.COMMUNITIES = [
+  // =========================
+  // HOME / MASTER-PLANNED
+  // =========================
+  {
+    name: "Cypress",
+    kind: "home",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433", "77373"],
+    addressMode: "full" // street + city + zip
+  },
+  {
+    name: "Bridgeland",
+    kind: "home",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "full"
+  },
+  {
+    name: "Towne Lake",
+    kind: "home",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "full"
+  },
+  {
+    name: "Fairfield",
+    kind: "home",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "full"
+  },
+  {
+    name: "Rose Hill",
+    kind: "home",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "full"
+  },
 
-  { name: "Towne Lake", type: "home" },
-  { name: "Towne Lake Greene", type: "home" },
+  // =========================
+  // APARTMENTS / MULTI-FAMILY
+  // (77433 + 77373)
+  // =========================
 
-  { name: "Fairfield", type: "home" },
-  { name: "Fairfield Village North", type: "home" },
-  { name: "Fairfield Garden Grove", type: "home" },
+  // ---- 77433 (Cypress) ----
+  {
+    name: "Alexan Cypress Creek",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit" // unit/apt + optional building + street optional
+  },
+  {
+    name: "Allora Parkland",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit"
+  },
+  {
+    name: "Alys Crossing",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit"
+  },
+  {
+    name: "Cantera at Towne Lake",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit"
+  },
+  {
+    name: "Cortland North Haven",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit"
+  },
+  {
+    name: "Cue Luxury Apartments",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit"
+  },
+  {
+    name: "Lakeside Row Apartments",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit"
+  },
+  {
+    name: "MAA Grand Cypress",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit"
+  },
+  {
+    name: "Prose Canopy",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit"
+  },
+  {
+    name: "Skyview Flats",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit"
+  },
 
-  { name: "Marvida", type: "home" },
+  // ---- 77373 (Spring) ----
+  {
+    name: "CW Cypresswood",
+    kind: "apartment",
+    city: "Spring",
+    state: "TX",
+    zips: ["77373"],
+    addressMode: "unit"
+  },
+  {
+    name: "Serena Woods Apartments",
+    kind: "apartment",
+    city: "Spring",
+    state: "TX",
+    zips: ["77373"],
+    addressMode: "unit"
+  },
+  {
+    name: "Spring Park",
+    kind: "apartment",
+    city: "Spring",
+    state: "TX",
+    zips: ["77373"],
+    addressMode: "unit"
+  },
+  {
+    name: "THE ABBEY AT NORTHPOINT",
+    kind: "apartment",
+    city: "Spring",
+    state: "TX",
+    zips: ["77373"],
+    addressMode: "unit"
+  },
+  {
+    name: "The Pierpont",
+    kind: "apartment",
+    city: "Spring",
+    state: "TX",
+    zips: ["77373"],
+    addressMode: "unit"
+  },
+  {
+    name: "The Tribute",
+    kind: "apartment",
+    city: "Spring",
+    state: "TX",
+    zips: ["77373"],
+    addressMode: "unit"
+  },
+  {
+    name: "Timber Run Apartments",
+    kind: "apartment",
+    city: "Spring",
+    state: "TX",
+    zips: ["77373"],
+    addressMode: "unit"
+  },
+  {
+    name: "Trailing Vine Apartments",
+    kind: "apartment",
+    city: "Spring",
+    state: "TX",
+    zips: ["77373"],
+    addressMode: "unit"
+  },
 
-  { name: "Bridge Creek", type: "home" },
-  { name: "Westgate", type: "home" },
-
-  { name: "Cypress Creek Lakes", type: "home" },
-  { name: "Canyon Village at Cypress Springs", type: "home" },
-  { name: "Cypress Springs", type: "home" },
-  { name: "Villages of Cypress Lakes", type: "home" },
-  { name: "Cypress Oaks", type: "home" },
-
-  { name: "Durham Pointe", type: "home" },
-
-  // --------------------------
-  // ROSE HILL (requested) — confirm exact community names
-  // --------------------------
-  { name: "Rose Hill", type: "home" },
-  { name: "Rosehill", type: "home" },
-  { name: "Rosehill Reserve", type: "home" },
-
-  // --------------------------
-  // APARTMENT / MULTI-FAMILY (Apartments.com)
-  // NOTE: Your screenshot is not readable enough to extract names safely.
-  // Paste the list of property names (text) and I’ll format it instantly.
-  // --------------------------
-  // { name: "Avalon at Cypress", type: "apartment" },
-  // { name: "…", type: "apartment" },
-].sort((a, b) => a.name.localeCompare(b.name));
+  // ---- MUST BE LAST (as requested) ----
+  {
+    name: "Greenhouse Village Apartments",
+    kind: "apartment",
+    city: "Cypress",
+    state: "TX",
+    zips: ["77433"],
+    addressMode: "unit"
+  }
+];
