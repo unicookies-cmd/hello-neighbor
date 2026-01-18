@@ -1,7 +1,7 @@
 # netlify.toml — Hello Neighbor
 [build]
   publish = "."
-  functions = "netlify/functions"
+  functions = "functions"
 
 # Optional: basic security headers
 [[headers]]
