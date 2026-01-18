@@ -1,379 +1,623 @@
-// app.js — Hello Neighbor (screen flow + autocomplete + submit)
-// Deploying on Netlify is recommended (forms/functions). If using GitHub Pages,
-// set HELLO_CONFIG.apiBase to your Netlify site URL so the submit endpoint works.
+/* =========================================================
+   Hello Neighbor — UniCookies (app.js)
+   Matches your current index.html structure (s1–s5)
+   Adds resident email support (optional)
+   Communities: Netlify function first, then local fallback
+   ========================================================= */
 
 (function () {
+  // ---------- Helpers ----------
   const $ = (id) => document.getElementById(id);
 
-  const cfg = window.HELLO_CONFIG || {};
-  const communities = (window.UNI_COMMUNITIES || []).filter(c => (c.status || "active") === "active");
+  function showToast(msg) {
+    const t = $("toast");
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
 
-  // Screens
-  const screens = ["s1","s2","s3","s4","s5"].map($);
-  const show = (id) => {
-    screens.forEach(s => s.classList.remove("active"));
-    $(id).classList.add("active");
-    $(id).classList.remove("fade");
-    // re-trigger fade animation
-    void $(id).offsetWidth;
-    $(id).classList.add("fade");
+  function vib(ms = 15) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch (_) {}
+  }
+
+  function normalize(str) {
+    return String(str || "").trim().toLowerCase();
+  }
+
+  function safeStr(v) {
+    return String(v || "").trim();
+  }
+
+  function setScreen(activeId) {
+    const ids = ["s1", "s2", "s3", "s4", "s5"];
+    ids.forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      if (id === activeId) el.classList.add("active");
+      else el.classList.remove("active");
+    });
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // ---------- Ethos ----------
+  const ETHOS_LINES = [
+    "A small gift. A soft landing. A sweet hello.",
+    "Welcome home — take a breath and let today feel lighter.",
+    "New place, same you. You’re allowed to rest into this moment.",
+    "A neighborly hello, delivered with care.",
+  ];
+
+  function setEthos() {
+    const el = $("ethos");
+    if (!el) return;
+    const line = ETHOS_LINES[Math.floor(Math.random() * ETHOS_LINES.length)];
+    el.textContent = line;
+  }
+
+  // ---------- State ----------
+  const STATE = {
+    communities: [],
+    // selection:
+    selectedCommunity: null,     // object from list
+    manualCommunityName: "",     // when not found
+    manualType: "",              // "home" | "apartment"
+    // derived:
+    mode: "",                    // "home" | "apartment"
   };
 
-  // Toast
-  const toast = $("toast");
-  let toastTimer = null;
-  const notify = (msg) => {
-    toast.textContent = msg;
-    toast.classList.add("show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove("show"), 2400);
-    if (navigator.vibrate) navigator.vibrate(20);
-  };
+  // ---------- Communities loading ----------
+  async function loadCommunities() {
+    // 1) Netlify Function (preferred)
+    try {
+      const res = await fetch("/.netlify/functions/get-communities", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.communities) && data.communities.length) {
+          return data.communities
+            .map(normalizeCommunity)
+            .filter((c) => c.status === "active" && c.name);
+        }
+      }
+    } catch (_) {}
 
-  // Copy
-  $("ethos").textContent = cfg.ethosLine || "";
+    // 2) Local fallback (communities.js)
+    const local = Array.isArray(window.UNI_COMMUNITIES) ? window.UNI_COMMUNITIES : [];
+    return local
+      .map(normalizeCommunity)
+      .filter((c) => c.status === "active" && c.name);
+  }
 
-  // State
-  const state = {
-    community: null,       // {id,name,type,city,zip,requiresBuilding}
-    communityName: "",
-    communityType: "",     // "home" | "apartment"
-    manualCommunity: false,
-    address: {},
-    person: {}
-  };
+  function normalizeCommunity(c) {
+    const obj = c || {};
+    return {
+      id: obj.id || obj.communityId || obj.communityID || "",
+      name: obj.name || "",
+      type: normalize(obj.type) === "apartment" ? "apartment" : "home",
+      city: obj.city || "",
+      zip: obj.zip ? String(obj.zip) : "",
+      requiresBuilding: !!obj.requiresBuilding,
+      status: normalize(obj.status || "active"),
+    };
+  }
 
-  // Helpers
-  const norm = (s) => String(s || "").trim().toUpperCase().replace(/\s+/g, " ");
-  const digits = (s) => String(s || "").replace(/[^0-9]/g, "");
-  const formatPhone = (s) => {
-    const d = digits(s).slice(0,10);
-    if (d.length <= 3) return d;
-    if (d.length <= 6) return `(${d.slice(0,3)}) ${d.slice(3)}`;
-    return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
-  };
+  // ---------- Suggestions UI ----------
+  const MAX_SUGGESTIONS = 10;
 
-  // Screen 1 actions
-  $("startBtn").addEventListener("click", () => show("s2"));
+  function setSuggestVisible(isVisible) {
+    const box = $("suggestBox");
+    if (!box) return;
+    box.classList.toggle("hidden", !isVisible);
+  }
 
-  // Screen 2: autocomplete
-  const input = $("communityInput");
-  const box = $("suggestBox");
-  const manualBlock = $("manualTypeBlock");
-  let manualTypeChosen = ""; // "home" | "apartment" when manual
+  function setManualTypeBlockVisible(isVisible) {
+    const block = $("manualTypeBlock");
+    if (!block) return;
+    block.classList.toggle("hidden", !isVisible);
+  }
 
-  const renderSuggestions = (q) => {
-    const query = norm(q);
-    if (!query) { box.classList.add("hidden"); box.innerHTML = ""; manualBlock.classList.add("hidden"); return; }
+  function renderSuggestions(items) {
+    const box = $("suggestBox");
+    if (!box) return;
 
-    const matches = communities
-      .filter(c => norm(c.name).includes(query))
-      .slice(0, cfg.maxSuggestions || 7);
-
-    const html = matches.map(c => `
-      <div class="suggestitem" role="option" data-id="${c.id}">
-        <div>
-          <div><strong>${c.name}</strong></div>
-          <div class="suggestmeta">${(c.type === "home") ? "Home community" : "Apartment / condo / loft"} • ${(c.city||"")}${(c.zip ? " " + c.zip : "")}</div>
-        </div>
-        <div class="suggestmeta">Select</div>
-      </div>
-    `).join("");
-
-    // Manual option
-    const manual = `
-      <div class="suggestitem" role="option" data-manual="true">
-        <div>
-          <div><strong>Use “${q}”</strong></div>
-          <div class="suggestmeta">Can’t find it? Type it in.</div>
-        </div>
-        <div class="suggestmeta">Select</div>
-      </div>
-    `;
-
-    box.innerHTML = (html || "") + manual;
-    box.classList.remove("hidden");
-  };
-
-  input.addEventListener("input", (e) => {
-    renderSuggestions(e.target.value);
-  });
-
-  input.addEventListener("focus", (e) => renderSuggestions(e.target.value));
-
-  document.addEventListener("click", (e) => {
-    if (!box.contains(e.target) && e.target !== input) {
-      box.classList.add("hidden");
-    }
-  });
-
-  box.addEventListener("click", (e) => {
-    const item = e.target.closest(".suggestitem");
-    if (!item) return;
-
-    const manual = item.getAttribute("data-manual") === "true";
-    if (manual) {
-      state.manualCommunity = true;
-      state.community = null;
-      state.communityName = input.value.trim();
-      state.communityType = "";
-      manualTypeChosen = "";
-      box.classList.add("hidden");
-      manualBlock.classList.remove("hidden");
-      notify("Select a community type.");
+    if (!items.length) {
+      box.innerHTML = "";
+      setSuggestVisible(false);
       return;
     }
 
-    const id = item.getAttribute("data-id");
-    const c = communities.find(x => x.id === id);
-    if (!c) return;
+    box.innerHTML = items
+      .map((c) => {
+        const meta = [c.city, c.zip, c.type].filter(Boolean).join(" • ");
+        return `
+          <div class="item" role="option" data-id="${escapeHtml(c.id)}">
+            <span>${escapeHtml(c.name)}</span>
+            <span class="meta">${escapeHtml(meta)}</span>
+          </div>
+        `;
+      })
+      .join("");
 
-    state.manualCommunity = false;
-    state.community = c;
-    state.communityName = c.name;
-    state.communityType = c.type;
-    input.value = c.name;
-    manualBlock.classList.add("hidden");
-    manualTypeChosen = "";
-    box.classList.add("hidden");
-    notify("Community selected.");
-  });
+    setSuggestVisible(true);
 
-  $("manualHome").addEventListener("click", () => {
-    manualTypeChosen = "home";
-    state.communityType = "home";
-    notify("Home community selected.");
-  });
+    // Click binding
+    box.querySelectorAll(".item").forEach((el) => {
+      el.addEventListener("click", () => {
+        const id = el.getAttribute("data-id");
+        const found = STATE.communities.find((x) => String(x.id) === String(id));
+        if (!found) return;
 
-  $("manualApt").addEventListener("click", () => {
-    manualTypeChosen = "apartment";
-    state.communityType = "apartment";
-    notify("Apartment/condo selected.");
-  });
+        // Set selection
+        STATE.selectedCommunity = found;
+        STATE.manualCommunityName = "";
+        STATE.manualType = "";
+        STATE.mode = found.type;
 
-  // Screen 2 nav
-  $("back1").addEventListener("click", () => show("s1"));
+        // Fill input
+        const input = $("communityInput");
+        if (input) input.value = found.name;
 
-  $("toAddress").addEventListener("click", () => {
-    const name = input.value.trim();
-    if (!name) return notify("Enter your community name.");
-    state.communityName = name;
+        // Hide suggestion + manual block
+        setSuggestVisible(false);
+        setManualTypeBlockVisible(false);
 
-    if (!state.communityType) return notify("Choose a community type.");
+        vib(15);
+        showToast("Community selected");
+      });
+    });
+  }
 
-    // Configure Screen 3 fields based on type + community info
+  function escapeHtml(str) {
+    return String(str || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function handleCommunityInput() {
+    const input = $("communityInput");
+    if (!input) return;
+
+    const q = normalize(input.value);
+
+    // Reset selection whenever user types
+    STATE.selectedCommunity = null;
+    STATE.manualCommunityName = safeStr(input.value);
+    STATE.mode = "";
+
+    // Manual type block shows if they typed something but no exact selection yet
+    if (q.length >= 2) setManualTypeBlockVisible(true);
+    else setManualTypeBlockVisible(false);
+
+    // Suggestions
+    if (!q) {
+      renderSuggestions([]);
+      return;
+    }
+
+    const matches = STATE.communities
+      .filter((c) => normalize(c.name).includes(q))
+      .slice(0, MAX_SUGGESTIONS);
+
+    renderSuggestions(matches);
+  }
+
+  // ---------- Address mode & field visibility ----------
+  function applyAddressMode(mode) {
     const home = $("homeFields");
-    const apt  = $("aptFields");
+    const apt = $("aptFields");
+    const addrHelp = $("addrHelp");
     const buildingWrap = $("buildingWrap");
 
-    home.classList.add("hidden");
-    apt.classList.add("hidden");
+    STATE.mode = mode;
 
-    if (state.communityType === "home") {
-      home.classList.remove("hidden");
-      // Prefill city/zip if known
-      const city = state.community?.city || "";
-      const zip  = state.community?.zip || "";
-      $("city").value = city;
-      $("zip").value = zip;
-      $("addrHelp").textContent = "Enter your street address so we can deliver smoothly.";
+    if (mode === "home") {
+      home && home.classList.remove("hidden");
+      apt && apt.classList.add("hidden");
+      addrHelp && (addrHelp.textContent = "Tell us where to deliver your welcome box.");
+    } else if (mode === "apartment") {
+      home && home.classList.add("hidden");
+      apt && apt.classList.remove("hidden");
+      addrHelp && (addrHelp.textContent = "Tell us your unit so we can deliver your welcome box.");
     } else {
-      apt.classList.remove("hidden");
-      const city = state.community?.city || "";
-      const zip  = state.community?.zip || "";
-      $("aptCity").value = city;
-      $("aptZip").value = zip;
-
-      const needsBuilding = !!state.community?.requiresBuilding;
-      if (needsBuilding) buildingWrap.classList.remove("hidden");
-      else buildingWrap.classList.add("hidden");
-
-      $("addrHelp").textContent = "Enter your unit number. Add building if your property uses it.";
+      // none selected yet
+      home && home.classList.add("hidden");
+      apt && apt.classList.add("hidden");
     }
 
-    show("s3");
-  });
+    // If selected community determines building requirement
+    if (buildingWrap) {
+      const req = !!STATE.selectedCommunity?.requiresBuilding;
+      buildingWrap.style.display = req ? "" : "none";
+    }
+  }
 
-  // Screen 3 nav
-  $("back2").addEventListener("click", () => show("s2"));
+  function prefillCityZipIfKnown() {
+    const c = STATE.selectedCommunity;
+    if (!c) return;
 
-  $("toDetails").addEventListener("click", () => {
-    // Validate + store address
-    if (state.communityType === "home") {
-      const streetNumber = $("streetNumber").value.trim();
-      const streetName = $("streetName").value.trim();
-      const streetType = $("streetType").value;
-      const city = $("city").value.trim();
-      const zip = $("zip").value.trim();
-
-      if (!streetNumber || !streetName) return notify("Enter your street number and street name.");
-
-      state.address = { streetNumber, streetName, streetType, city, zip };
-    } else {
-      const unit = $("unit").value.trim();
-      const building = $("building").value.trim();
-      const city = $("aptCity").value.trim();
-      const zip = $("aptZip").value.trim();
-
-      if (!unit) return notify("Enter your unit / apt number.");
-
-      // if community requires building, enforce it
-      if (state.community?.requiresBuilding && !building) return notify("Enter your building.");
-
-      state.address = { unit, building, city, zip };
+    if (STATE.mode === "home") {
+      const city = $("city");
+      const zip = $("zip");
+      if (city && !city.value) city.value = c.city || "";
+      if (zip && !zip.value) zip.value = c.zip || "";
     }
 
-    show("s4");
-  });
-
-  // Screen 4 nav
-  $("back3").addEventListener("click", () => show("s3"));
-
-  $("phone").addEventListener("input", (e) => {
-    e.target.value = formatPhone(e.target.value);
-  });
-
-  const buildClaimKey = () => {
-    const communityKey = state.community?.id ? norm(state.community.id) : norm(state.communityName);
-    if (state.communityType === "home") {
-      const a = state.address;
-      return [communityKey, norm(a.streetNumber), norm(a.streetName), norm(a.streetType), norm(a.zip || ""), norm(a.city || "")].filter(Boolean).join("|");
+    if (STATE.mode === "apartment") {
+      const city = $("aptCity");
+      const zip = $("aptZip");
+      if (city && !city.value) city.value = c.city || "";
+      if (zip && !zip.value) zip.value = c.zip || "";
     }
-    const a = state.address;
-    // include building only if provided (or required)
-    return [communityKey, norm(a.unit), norm(a.building || ""), norm(a.zip || ""), norm(a.city || "")].filter(Boolean).join("|");
-  };
+  }
 
-  const alreadyClaimedOnDevice = (claimKey) => {
-    try{
-      const v = localStorage.getItem("helloNeighbor:lastClaimKey");
-      return v && v === claimKey;
-    }catch(_){ return false; }
-  };
+  // ---------- Validation ----------
+  function validateCommunityStep() {
+    const input = $("communityInput");
+    const typed = safeStr(input ? input.value : "");
 
-  const markClaimedOnDevice = (claimKey) => {
-    try{
-      localStorage.setItem("helloNeighbor:lastClaimKey", claimKey);
-      localStorage.setItem("helloNeighbor:lastClaimAt", new Date().toISOString());
-    }catch(_){}
-  };
-
-  const apiUrl = (path) => {
-    const base = (cfg.apiBase || "").replace(/\/$/, "");
-    return base + path;
-  };
-
-  $("submitBtn").addEventListener("click", async () => {
-    const firstName = $("firstName").value.trim();
-    const lastName = $("lastName").value.trim();
-    const phone = $("phone").value.trim();
-    const notes = $("notes").value.trim();
-
-    if (!firstName) return notify("First name is required.");
-    if (digits(phone).length < 10) return notify("Enter a valid phone number.");
-
-    state.person = { firstName, lastName, phone, notes };
-
-    const claimKey = buildClaimKey();
-    if (alreadyClaimedOnDevice(claimKey)) {
-      return notify("This device already submitted this claim.");
+    if (!typed) {
+      showToast("Enter your community name.");
+      return false;
     }
 
-    const payload = {
-      claimKey,
-      communityId: state.community?.id || "",
-      communityName: state.communityName,
-      communityType: state.communityType,
-      address: state.address,
-      person: state.person,
-      submittedAt: new Date().toISOString()
+    // If they selected from list, mode comes from that record
+    if (STATE.selectedCommunity) {
+      STATE.mode = STATE.selectedCommunity.type;
+      return true;
+    }
+
+    // Manual path requires choosing a type
+    if (!STATE.manualType) {
+      showToast("Select a community type (Home or Apartment).");
+      return false;
+    }
+
+    STATE.mode = STATE.manualType;
+    return true;
+  }
+
+  function validateAddressStep() {
+    if (STATE.mode === "home") {
+      const streetNumber = safeStr($("streetNumber")?.value);
+      const streetName = safeStr($("streetName")?.value);
+      const city = safeStr($("city")?.value);
+      const zip = safeStr($("zip")?.value);
+
+      if (!streetNumber || !streetName) {
+        showToast("Enter street number and street name.");
+        return false;
+      }
+      if (!city || !zip) {
+        showToast("Enter city and ZIP.");
+        return false;
+      }
+      return true;
+    }
+
+    if (STATE.mode === "apartment") {
+      const unit = safeStr($("unit")?.value);
+      const city = safeStr($("aptCity")?.value);
+      const zip = safeStr($("aptZip")?.value);
+
+      if (!unit) {
+        showToast("Enter your unit / apt #.");
+        return false;
+      }
+      if (!city || !zip) {
+        showToast("Enter city and ZIP.");
+        return false;
+      }
+      return true;
+    }
+
+    showToast("Please select a community type.");
+    return false;
+  }
+
+  function validateDetailsStep() {
+    const firstName = safeStr($("firstName")?.value);
+    const phone = safeStr($("phone")?.value);
+
+    if (!firstName) {
+      showToast("First name is required.");
+      return false;
+    }
+    if (!phone) {
+      showToast("Phone is required.");
+      return false;
+    }
+    return true;
+  }
+
+  // ---------- Payload build ----------
+  function getCommunityName() {
+    const input = $("communityInput");
+    return safeStr(STATE.selectedCommunity?.name || input?.value || STATE.manualCommunityName || "");
+  }
+
+  function getCommunityMeta() {
+    const c = STATE.selectedCommunity;
+    return {
+      communityId: c?.id || "",
+      communityName: getCommunityName(),
+      communityType: STATE.mode || (c?.type || ""),
+      communityCity: c?.city || "",
+      communityZip: c?.zip || "",
+      requiresBuilding: !!c?.requiresBuilding,
     };
+  }
 
-    // Submit to Netlify function (recommended)
-    // If you have not set up the function yet, you can still collect payload by email via Airtable automation later.
-    const endpoint = apiUrl("/.netlify/functions/submit-claim");
+  function buildAddress() {
+    if (STATE.mode === "home") {
+      const streetNumber = safeStr($("streetNumber")?.value);
+      const streetName = safeStr($("streetName")?.value);
+      const streetType = safeStr($("streetType")?.value || "ST");
+      const city = safeStr($("city")?.value);
+      const zip = safeStr($("zip")?.value);
 
-    $("submitBtn").disabled = true;
-    $("submitBtn").textContent = "Sending…";
+      const addressLine1 = `${streetNumber} ${streetName} ${streetType}`.trim();
 
-    try{
-      const res = await fetch(endpoint, {
+      return {
+        addressMode: "home",
+        addressLine1,
+        unit: "",
+        building: "",
+        city,
+        zip,
+      };
+    }
+
+    // apartment
+    const unit = safeStr($("unit")?.value);
+    const building = safeStr($("building")?.value);
+    const city = safeStr($("aptCity")?.value);
+    const zip = safeStr($("aptZip")?.value);
+
+    return {
+      addressMode: "apartment",
+      addressLine1: "", // optional (we keep blank for apts unless you later add street input)
+      unit,
+      building,
+      city,
+      zip,
+    };
+  }
+
+  function buildPerson() {
+    const firstName = safeStr($("firstName")?.value);
+    const lastName = safeStr($("lastName")?.value);
+    const phone = safeStr($("phone")?.value);
+    const notes = safeStr($("notes")?.value);
+
+    // Optional email field (only if you add it)
+    const email = safeStr($("email")?.value);
+
+    return {
+      firstName,
+      lastName,
+      phone,
+      email, // optional
+      notes,
+    };
+  }
+
+  function buildPayload() {
+    return {
+      ...getCommunityMeta(),
+      ...buildAddress(),
+      ...buildPerson(),
+      // Helpful system fields (safe)
+      source: "hello-neighbor",
+      submittedAt: new Date().toISOString(),
+      userAgent: navigator.userAgent || "",
+    };
+  }
+
+  // ---------- Submit ----------
+  async function submitClaim() {
+    if (!validateDetailsStep()) return;
+
+    const payload = buildPayload();
+
+    const btn = $("submitBtn");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+    }
+
+    try {
+      const res = await fetch("/.netlify/functions/submit-claim", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload)
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json().catch(() => ({}));
+      let data = {};
+      try { data = await res.json(); } catch (_) {}
 
       if (!res.ok) {
-        if (data && data.code === "DUPLICATE") {
-          notify("This welcome box has already been claimed.");
-          $("submitBtn").disabled = false;
-          $("submitBtn").textContent = "Send me cookies.";
-          return;
+        const msg = data?.error || "Could not submit. Please try again.";
+        showToast(msg);
+
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Send me cookies.";
         }
-        notify("Couldn’t submit right now. Try again.");
-        $("submitBtn").disabled = false;
-        $("submitBtn").textContent = "Send me cookies.";
         return;
       }
 
-      markClaimedOnDevice(claimKey);
-      renderSummary(payload, data);
-      show("s5");
-      notify("Claim received.");
-    }catch(err){
-      console.error(err);
-      notify("Network error. Try again.");
-    }finally{
-      $("submitBtn").disabled = false;
-      $("submitBtn").textContent = "Send me cookies.";
-    }
-  });
+      // Success
+      vib(20);
+      fillSummary(payload);
+      setScreen("s5");
 
-  const escapeHtml = (s) => String(s || "").replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const renderSummary = (payload, data) => {
-    const a = payload.address;
-    const p = payload.person;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Send me cookies.";
+      }
+    } catch (e) {
+      showToast("Network error. Please try again.");
+
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Send me cookies.";
+      }
+    }
+  }
+
+  function fillSummary(payload) {
+    const el = $("summary");
+    if (!el) return;
+
+    const name = [payload.firstName, payload.lastName].filter(Boolean).join(" ");
+    const comm = payload.communityName || "";
+    const phone = payload.phone || "";
 
     let addrLine = "";
-    if (payload.communityType === "home") {
-      addrLine = `${escapeHtml(a.streetNumber)} ${escapeHtml(a.streetName)} ${escapeHtml(a.streetType)}, ${escapeHtml(a.city || "")} ${escapeHtml(a.zip || "")}`.replace(/\s+/g," ").trim();
+    if (payload.addressMode === "home") {
+      addrLine = `${payload.addressLine1}, ${payload.city} ${payload.zip}`.trim();
     } else {
-      addrLine = `Unit ${escapeHtml(a.unit)}${a.building ? " • Building " + escapeHtml(a.building) : ""}, ${escapeHtml(a.city || "")} ${escapeHtml(a.zip || "")}`.replace(/\s+/g," ").trim();
+      const parts = [];
+      if (payload.unit) parts.push(`Unit ${payload.unit}`);
+      if (payload.building) parts.push(`Bldg ${payload.building}`);
+      parts.push(`${payload.city} ${payload.zip}`.trim());
+      addrLine = parts.filter(Boolean).join(" • ");
     }
 
-    const orderId = data && data.orderId ? `Order ref: <strong>${escapeHtml(data.orderId)}</strong><br/>` : "";
+    // Use divider area as readable summary (keeps your structure)
+    el.innerHTML = `
+      <div><strong>Name:</strong> ${escapeHtml(name || "—")}</div>
+      <div><strong>Phone:</strong> ${escapeHtml(phone || "—")}</div>
+      <div><strong>Community:</strong> ${escapeHtml(comm || "—")}</div>
+      <div><strong>Address:</strong> ${escapeHtml(addrLine || "—")}</div>
+    `;
+  }
 
-    $("summary").innerHTML =
-      `${orderId}` +
-      `<strong>${escapeHtml(payload.communityName)}</strong><br/>` +
-      `${addrLine}<br/>` +
-      `${escapeHtml(p.firstName)}${p.lastName ? " " + escapeHtml(p.lastName) : ""} • ${escapeHtml(p.phone)}<br/>` +
-      `${p.notes ? ("Notes: " + escapeHtml(p.notes)) : "Notes: —"}`;
-  };
-
-  $("newClaim").addEventListener("click", () => {
-    // Reset inputs
-    input.value = "";
-    $("suggestBox").innerHTML = "";
-    $("suggestBox").classList.add("hidden");
-    $("manualTypeBlock").classList.add("hidden");
-
-    ["streetNumber","streetName","city","zip","unit","building","aptCity","aptZip","firstName","lastName","phone","notes"].forEach(id => {
-      const el = $(id);
-      if (el) el.value = "";
+  // ---------- Bindings ----------
+  function bindUI() {
+    // Screen 1
+    $("startBtn")?.addEventListener("click", () => {
+      vib(15);
+      setScreen("s2");
+      $("communityInput")?.focus();
     });
 
-    state.community = null;
-    state.communityName = "";
-    state.communityType = "";
-    state.manualCommunity = false;
-    state.address = {};
-    state.person = {};
+    // Screen 2
+    $("communityInput")?.addEventListener("input", handleCommunityInput);
+    $("communityInput")?.addEventListener("focus", handleCommunityInput);
 
-    show("s1");
-  });
+    // Dismiss suggest box if click outside
+    document.addEventListener("click", (e) => {
+      const box = $("suggestBox");
+      const field = $("communityInput");
+      if (!box || !field) return;
+      if (box.contains(e.target) || field.contains(e.target)) return;
+      setSuggestVisible(false);
+    });
+
+    $("manualHome")?.addEventListener("click", () => {
+      STATE.manualType = "home";
+      vib(15);
+      showToast("Home community selected");
+    });
+
+    $("manualApt")?.addEventListener("click", () => {
+      STATE.manualType = "apartment";
+      vib(15);
+      showToast("Apartment / condo selected");
+    });
+
+    $("back1")?.addEventListener("click", () => {
+      vib(10);
+      setScreen("s1");
+    });
+
+    $("toAddress")?.addEventListener("click", () => {
+      if (!validateCommunityStep()) return;
+
+      // Determine mode and show correct fields
+      applyAddressMode(STATE.mode);
+
+      // Prefill city/zip if selected community has them
+      prefillCityZipIfKnown();
+
+      vib(10);
+      setScreen("s3");
+    });
+
+    // Screen 3
+    $("back2")?.addEventListener("click", () => {
+      vib(10);
+      setScreen("s2");
+    });
+
+    $("toDetails")?.addEventListener("click", () => {
+      if (!validateAddressStep()) return;
+      vib(10);
+      setScreen("s4");
+    });
+
+    // Screen 4
+    $("back3")?.addEventListener("click", () => {
+      vib(10);
+      setScreen("s3");
+    });
+
+    $("submitBtn")?.addEventListener("click", submitClaim);
+
+    // Screen 5
+    $("newClaim")?.addEventListener("click", () => {
+      vib(10);
+      resetAll();
+      setScreen("s1");
+    });
+  }
+
+  function resetAll() {
+    STATE.selectedCommunity = null;
+    STATE.manualCommunityName = "";
+    STATE.manualType = "";
+    STATE.mode = "";
+
+    // Clear inputs safely (only if present)
+    const ids = [
+      "communityInput",
+      "streetNumber", "streetName", "city", "zip",
+      "unit", "building", "aptCity", "aptZip",
+      "firstName", "lastName", "phone", "notes", "email"
+    ];
+    ids.forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.value = "";
+    });
+
+    // Reset visibility blocks
+    setSuggestVisible(false);
+    setManualTypeBlockVisible(false);
+    applyAddressMode(""); // hides both
+    setEthos();
+  }
+
+  // ---------- Boot ----------
+  (async function init() {
+    setEthos();
+    setScreen("s1");
+
+    // Load communities
+    STATE.communities = await loadCommunities();
+
+    // If list is empty, user can still type manually
+    if (!STATE.communities.length) {
+      setManualTypeBlockVisible(true);
+      showToast("Communities list is loading or unavailable — you can type manually.");
+    }
+
+    bindUI();
+  })();
 
 })();
