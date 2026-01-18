@@ -1,9 +1,10 @@
-# netlify.toml — Hello Neighbor
 [build]
   publish = "."
   functions = "functions"
 
-# Optional: basic security headers
+[build.environment]
+  NODE_VERSION = "18"
+
 [[headers]]
   for = "/*"
   [headers.values]
